@@ -12,6 +12,13 @@
 
 Windows/MacOS
 
+## 下载地址
+
+Windows&MacOS
+
+https://pan.quark.cn/s/c92b798174ae
+
+
 ## 使用方式
 
 下载打包好的工具
