@@ -1,4 +1,3 @@
-
 import sys
 import os
 import json
@@ -13,6 +12,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QProcess, QTimer
 from PyQt5.QtGui import QFont, QTextCursor
+import time
 
 CONFIG_FILE = 'commands.json'
 
@@ -31,6 +31,7 @@ class ParamInputDialog(QDialog):
             }
             QLabel {
                 font-weight: bold;
+                color: #333;
             }
             QPushButton {
                 background-color: #4CAF50;
@@ -38,25 +39,43 @@ class ParamInputDialog(QDialog):
                 border: none;
                 padding: 8px 16px;
                 border-radius: 4px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #45a049;
+            }
+            QLineEdit {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QLineEdit:focus {
+                border: 1px solid #4CAF50;
+            }
+            QPlainTextEdit {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background-color: white;
             }
         """)
         
         layout = QVBoxLayout()
         layout.setSpacing(15)
-        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setContentsMargins(20, 20, 20, 20)
         
         # 添加标题和说明
         title = QLabel('运行命令参数输入')
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #333;")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #333; margin-bottom: 10px;")
         layout.addWidget(title)
         
-        layout.addWidget(QLabel('请填写以下参数，示例仅供参考：'))
+        desc = QLabel('请填写以下参数，示例仅供参考：')
+        desc.setStyleSheet("color: #666; margin-bottom: 15px;")
+        layout.addWidget(desc)
         
         form = QFormLayout()
-        form.setSpacing(10)
+        form.setSpacing(15)
         form.setContentsMargins(0, 0, 0, 0)
         
         self.inputs = {}
@@ -66,23 +85,49 @@ class ParamInputDialog(QDialog):
         for p in self.params:
             ptype = param_types.get(p, '字符串')
             hbox = QHBoxLayout()
-            hbox.setSpacing(5)
+            hbox.setSpacing(10)
             
             line = QLineEdit()
-            line.setStyleSheet("padding: 5px; border: 1px solid #ddd; border-radius: 3px;")
+            line.setStyleSheet("""
+                QLineEdit {
+                    padding: 8px;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    background-color: white;
+                }
+                QLineEdit:focus {
+                    border: 1px solid #4CAF50;
+                }
+            """)
             
             if ptype == '文件':
                 line.setReadOnly(True)
                 line.setPlaceholderText('请选择文件')
                 btn = QPushButton('浏览')
-                btn.setStyleSheet("padding: 3px 8px;")
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #2196F3;
+                        padding: 6px 12px;
+                    }
+                    QPushButton:hover {
+                        background-color: #0b7dda;
+                    }
+                """)
                 btn.clicked.connect(partial(self.browse_file, line))
                 hbox.addWidget(line, 1)
                 hbox.addWidget(btn)
             elif ptype == '文件或字符串':
                 line.setPlaceholderText(f'示例: /path/to/{p}.txt 或 文本_{p}')
                 btn = QPushButton('浏览')
-                btn.setStyleSheet("padding: 3px 8px;")
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #2196F3;
+                        padding: 6px 12px;
+                    }
+                    QPushButton:hover {
+                        background-color: #0b7dda;
+                    }
+                """)
                 btn.clicked.connect(partial(self.browse_file, line))
                 hbox.addWidget(line, 1)
                 hbox.addWidget(btn)
@@ -102,7 +147,8 @@ class ParamInputDialog(QDialog):
             QPushButton {
                 background-color: #2196F3;
                 font-weight: bold;
-                padding: 8px;
+                padding: 10px;
+                font-size: 14px;
             }
             QPushButton:hover {
                 background-color: #0b7dda;
@@ -114,7 +160,7 @@ class ParamInputDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(run_btn)
         self.setLayout(layout)
-        self.resize(500, 300)
+        self.resize(600, 400)
 
     def browse_file(self, line_edit):
         path, _ = QFileDialog.getOpenFileName(self, '选择文件')
@@ -129,6 +175,31 @@ class ToolRunner(QMainWindow):
         super().__init__()
         self.setWindowTitle('CommandToGUI工具箱 By  公众号:知攻善防实验室 ChinaRan404')
         
+        # 主题相关初始化
+        self.current_theme = 'light'  # 默认使用浅色主题
+        self.themes = {
+            'light': {
+                'background': '#f0f0f0',
+                'foreground': '#333333',
+                'primary': '#2196F3',
+                'secondary': '#4CAF50',
+                'error': '#f44336',
+                'border': '#ddd',
+                'text': '#333',
+                'highlight': '#e3f2fd'
+            },
+            'dark': {
+                'background': '#1e1e1e',
+                'foreground': '#ffffff',
+                'primary': '#64b5f6',
+                'secondary': '#81c784',
+                'error': '#ef5350',
+                'border': '#333',
+                'text': '#fff',
+                'highlight': '#2d2d2d'
+            }
+        }
+        
         # 获取屏幕尺寸并设置初始大小为屏幕的40%
         screen = QApplication.primaryScreen().availableGeometry()
         self.resize(int(screen.width() * 0.6), int(screen.height() * 0.8))
@@ -136,6 +207,13 @@ class ToolRunner(QMainWindow):
         # 初始化配置
         self.config = {'categories': [], 'use_internal_terminal': True}
         self.load_config()
+        
+        # 终端相关初始化
+        self.command_history = []
+        self.history_index = -1
+        self.current_input = ""
+        self.prompt = "> "
+        self.is_input_mode = False
         
         self.init_ui()
         self.start_shell()
@@ -147,22 +225,88 @@ class ToolRunner(QMainWindow):
         # 设置窗口最小大小
         self.setMinimumSize(800, 600)
         
-        # 设置主窗口样式
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #f0f0f0;
-            }
-            QTreeWidget {
-                border: 1px solid #ccc;
+        # 应用默认主题
+        self.apply_theme()
+
+    def apply_theme(self):
+        theme = self.themes[self.current_theme]
+        self.setStyleSheet(f"""
+            QMainWindow {{
+                background-color: {theme['background']};
+            }}
+            QMenuBar {{
+                background-color: {theme['background']};
+                color: {theme['text']};
+                border-bottom: 1px solid {theme['border']};
+            }}
+            QMenuBar::item {{
+                padding: 5px 10px;
+                background: transparent;
+            }}
+            QMenuBar::item:selected {{
+                background: {theme['highlight']};
+            }}
+            QMenu {{
+                background-color: {theme['background']};
+                color: {theme['text']};
+                border: 1px solid {theme['border']};
+            }}
+            QMenu::item:selected {{
+                background-color: {theme['primary']};
+                color: white;
+            }}
+            QTreeWidget {{
+                border: 1px solid {theme['border']};
                 border-radius: 4px;
-                background-color: white;
-            }
-            QPlainTextEdit {
-                border: 1px solid #ccc;
+                background-color: {theme['background']};
+                color: {theme['text']};
+            }}
+            QTreeWidget::item {{
+                padding: 5px;
+                border-radius: 3px;
+            }}
+            QTreeWidget::item:hover {{
+                background-color: {theme['highlight']};
+            }}
+            QTreeWidget::item:selected {{
+                background-color: {theme['primary']};
+                color: white;
+            }}
+            QPlainTextEdit {{
+                border: 1px solid {theme['border']};
                 border-radius: 4px;
-                background-color: #fafafa;
-                font-family: Consolas, 'Courier New', monospace;
-            }
+                background-color: {theme['background']};
+                color: {theme['text']};
+                font-family: 'Consolas', 'Courier New', monospace;
+            }}
+            QPushButton {{
+                background-color: {theme['primary']};
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {theme['secondary']};
+            }}
+            QPushButton:disabled {{
+                background-color: {theme['border']};
+            }}
+            QStatusBar {{
+                background-color: {theme['background']};
+                color: {theme['text']};
+                border-top: 1px solid {theme['border']};
+            }}
+            QLabel {{
+                color: {theme['text']};
+            }}
+            QSplitter::handle {{
+                background-color: {theme['border']};
+            }}
+            QSplitter::handle:hover {{
+                background-color: {theme['primary']};
+            }}
         """)
 
     def init_ui(self):
@@ -172,21 +316,39 @@ class ToolRunner(QMainWindow):
         # 主布局
         main_widget = QWidget()
         main_layout = QVBoxLayout(main_widget)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(15)
         
         # 使用分割器
         splitter = QSplitter(Qt.Horizontal)
         splitter.setHandleWidth(5)  # 设置分割线宽度
+        splitter.setStyleSheet("""
+            QSplitter::handle {
+                background-color: #ddd;
+            }
+            QSplitter::handle:hover {
+                background-color: #2196F3;
+            }
+        """)
 
         # 左侧面板 - 命令树
         left_panel = QWidget()
-        left_panel.setMinimumWidth(200)  # 设置最小宽度
+        left_panel.setMinimumWidth(250)  # 设置最小宽度
         left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(10, 10, 10, 10)
+        left_layout.setSpacing(10)
         
         # 添加树控件标题
         tree_title = QLabel('命令分类')
-        tree_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #333;")
+        tree_title.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                font-weight: bold;
+                color: #333;
+                padding: 5px;
+                border-bottom: 2px solid #2196F3;
+            }
+        """)
         left_layout.addWidget(tree_title)
         
         # 树状结构
@@ -195,26 +357,68 @@ class ToolRunner(QMainWindow):
         self.tree.itemDoubleClicked.connect(self.on_item_double)
         self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self.show_context_menu)
+        self.tree.setStyleSheet("""
+            QTreeWidget {
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background-color: white;
+                padding: 5px;
+            }
+            QTreeWidget::item {
+                padding: 5px;
+                border-radius: 3px;
+            }
+            QTreeWidget::item:hover {
+                background-color: #f0f0f0;
+            }
+            QTreeWidget::item:selected {
+                background-color: #e3f2fd;
+                color: #2196F3;
+            }
+        """)
         left_layout.addWidget(self.tree)
         
         # 右侧面板 - 终端
         right_panel = QWidget()
         right_panel.setMinimumWidth(400)  # 设置最小宽度
         right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(10, 10, 10, 10)
+        right_layout.setSpacing(10)
         
         # 添加终端标题
         terminal_title = QLabel('内置终端')
-        terminal_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #333;")
+        terminal_title.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                font-weight: bold;
+                color: #333;
+                padding: 5px;
+                border-bottom: 2px solid #2196F3;
+            }
+        """)
         right_layout.addWidget(terminal_title)
         
         # 终端输出
         self.terminal = QPlainTextEdit()
         self.terminal.setReadOnly(False)
         self.terminal.setPlaceholderText('内置终端，支持交互式输入')
+        self.terminal.setStyleSheet("""
+            QPlainTextEdit {
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background-color: #fafafa;
+                font-family: 'Consolas', 'Courier New', monospace;
+                font-size: 12px;
+                padding: 5px;
+            }
+        """)
         
         # 设置终端字体
-        font = QFont("Consolas", 10)
+        font = QFont("Consolas", 12)
         self.terminal.setFont(font)
+        
+        # 安装事件过滤器以处理键盘事件
+        self.terminal.installEventFilter(self)
         
         right_layout.addWidget(self.terminal)
         
@@ -229,20 +433,29 @@ class ToolRunner(QMainWindow):
         
         # 状态栏
         self.status_bar = QStatusBar()
+        self.status_bar.setStyleSheet("""
+            QStatusBar {
+                background-color: #f5f5f5;
+                color: #666;
+                border-top: 1px solid #ddd;
+            }
+        """)
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("就绪")
 
+        # 添加停止按钮
         stop_btn = QPushButton('强制停止')
         stop_btn.setStyleSheet("""
             QPushButton {
-                background-color: #ff4444;
+                background-color: #f44336;
                 color: white;
                 border: none;
-                padding: 8px;
+                padding: 8px 16px;
                 border-radius: 4px;
+                font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #cc0000;
+                background-color: #d32f2f;
             }
         """)
         stop_btn.clicked.connect(self.stop_shell)
@@ -345,6 +558,21 @@ class ToolRunner(QMainWindow):
         toggle_terminal_action.triggered.connect(self.toggle_terminal)
         config_menu.addAction(toggle_terminal_action)
 
+        # 文件菜单
+        file_menu = menubar.addMenu('文件')
+        
+        # 主题切换
+        theme_menu = file_menu.addMenu('切换主题')
+        light_action = QAction('浅色主题', self, checkable=True)
+        light_action.setChecked(self.current_theme == 'light')
+        light_action.triggered.connect(lambda: self.switch_theme('light'))
+        theme_menu.addAction(light_action)
+        
+        dark_action = QAction('深色主题', self, checkable=True)
+        dark_action.setChecked(self.current_theme == 'dark')
+        dark_action.triggered.connect(lambda: self.switch_theme('dark'))
+        theme_menu.addAction(dark_action)
+
     def toggle_terminal(self, checked):
         """切换终端类型"""
         self.config['use_internal_terminal'] = not checked
@@ -361,6 +589,7 @@ class ToolRunner(QMainWindow):
             self.statusBar().showMessage('已强制停止当前命令', 3000)
         else:
             self.statusBar().showMessage('没有正在运行的进程', 3000)
+
     def show_context_menu(self, position):
         item = self.tree.itemAt(position)
         if not item:
@@ -518,6 +747,7 @@ class ToolRunner(QMainWindow):
             self.save_config()
             self.refresh_tree()
             self.statusBar().showMessage(f'已添加分类: {name}', 3000)
+
     def edit_category(self):
         item = self.tree.currentItem()
         if not item:
@@ -565,6 +795,7 @@ class ToolRunner(QMainWindow):
             return
         self.save_config()
         self.refresh_tree()
+
     def add_tool(self):
         cats = [c['name'] for c in self.config['categories']]
         if not cats:
@@ -831,7 +1062,6 @@ class ToolRunner(QMainWindow):
                     self.refresh_tree()
                     return
 
-
     def on_item_double(self, item, _):
         typ, data = item.data(0, Qt.UserRole)
         if typ == 'command':
@@ -857,21 +1087,84 @@ class ToolRunner(QMainWindow):
                 # 只发送一次命令
                 self.run_command(tpl)
 
+    def eventFilter(self, obj, event):
+        if obj == self.terminal and event.type() == event.KeyPress:
+            if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+                if not event.modifiers() & Qt.ShiftModifier:
+                    self.handle_command_input()
+                    return True
+            elif event.key() == Qt.Key_Up:
+                self.navigate_history(-1)
+                return True
+            elif event.key() == Qt.Key_Down:
+                self.navigate_history(1)
+                return True
+            elif event.key() == Qt.Key_Backspace:
+                if self.terminal.textCursor().positionInBlock() <= len(self.prompt):
+                    return True
+        return super().eventFilter(obj, event)
+
+    def handle_command_input(self):
+        cursor = self.terminal.textCursor()
+        cursor.movePosition(QTextCursor.End)
+        cursor.movePosition(QTextCursor.StartOfBlock, QTextCursor.KeepAnchor)
+        current_line = cursor.selectedText()
+        
+        # 提取用户输入的命令
+        if current_line.startswith(self.prompt):
+            command = current_line[len(self.prompt):].strip()
+            if command:
+                self.command_history.append(command)
+                self.history_index = len(self.command_history)
+                self.run_command(command)
+        
+        # 添加新的提示符
+        self.terminal.appendPlainText(self.prompt)
+        self.terminal.moveCursor(QTextCursor.End)
+
+    def navigate_history(self, direction):
+        if not self.command_history:
+            return
+            
+        if direction < 0:  # 向上
+            if self.history_index > 0:
+                self.history_index -= 1
+        else:  # 向下
+            if self.history_index < len(self.command_history) - 1:
+                self.history_index += 1
+            else:
+                self.history_index = len(self.command_history)
+                self.current_input = ""
+                return
+                
+        # 获取历史命令
+        command = self.command_history[self.history_index]
+        
+        # 更新当前行
+        cursor = self.terminal.textCursor()
+        cursor.movePosition(QTextCursor.End)
+        cursor.movePosition(QTextCursor.StartOfBlock, QTextCursor.KeepAnchor)
+        cursor.removeSelectedText()
+        cursor.insertText(self.prompt + command)
+        self.terminal.setTextCursor(cursor)
 
     def run_command(self, cmd):
-        # 添加命令到终端显示
         """执行命令（根据配置选择终端类型）"""
         if self.config.get('use_internal_terminal', True):
             # 内置终端执行
-            self.terminal.appendPlainText(f"> {cmd}")
+            self.terminal.appendPlainText(f"\n> {cmd}\n")
             self.terminal.moveCursor(QTextCursor.End)
             
             if not self.shell.isOpen():
                 self.start_shell()
                 self.shell.waitForStarted()
                 
-            self.shell.write((cmd + '\n').encode('utf-8'))
-            self.statusBar().showMessage(f'正在运行: {cmd.split()[0]}...', 3000)
+            try:
+                self.shell.write((cmd + '\n').encode('utf-8'))
+                self.statusBar().showMessage(f'正在运行: {cmd.split()[0]}...', 3000)
+            except Exception as e:
+                self.terminal.appendPlainText(f"错误: 无法执行命令 - {str(e)}\n")
+                self.statusBar().showMessage('命令执行失败', 3000)
         else:
             # 外置终端执行
             system = platform.system()
@@ -885,9 +1178,20 @@ class ToolRunner(QMainWindow):
                 self.statusBar().showMessage(f'已在外置终端运行: {cmd}', 3000)
             except Exception as e:
                 QMessageBox.critical(self, '错误', f'启动外置终端失败: {str(e)}')
+
     def on_shell_output(self):
         data = self.shell.readAll()
         text = bytes(data).decode(errors='replace')
+        
+        # 添加时间戳
+        if not hasattr(self, 'last_output_time'):
+            self.last_output_time = 0
+        current_time = time.time()
+        if current_time - self.last_output_time > 1:  # 如果距离上次输出超过1秒
+            timestamp = time.strftime("%H:%M:%S", time.localtime())
+            self.terminal.appendPlainText(f"\n[{timestamp}]")
+            self.last_output_time = current_time
+            
         self.terminal.insertPlainText(text)
         self.terminal.moveCursor(QTextCursor.End)
         
@@ -940,6 +1244,12 @@ class ToolRunner(QMainWindow):
         <p>By:公众号 知攻善防实验室 ChinaRan404</p>
         """
         QMessageBox.about(self, '关于', about_text)
+
+    def switch_theme(self, theme_name):
+        self.current_theme = theme_name
+        self.apply_theme()
+        self.statusBar().showMessage(f'已切换到{theme_name}主题', 3000)
+
 if __name__ ==  "__main__":
     app = QApplication(sys.argv)
     win = ToolRunner()
